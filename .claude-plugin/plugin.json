@@ -1,6 +1,6 @@
 {
   "name": "chix",
-  "description": "Skill for working with Nix-backed codebases: Go projects with gomod2nix, Rust projects with crane, flake conventions, justfile workflows, and devenv patterns",
+  "description": "Skill for working with Nix-backed codebases: Go projects with gomod2nix, Rust projects with crane, flake conventions, justfile workflows, devenv patterns, FlakeHub publishing, and GitHub Actions CI",
   "author": {
     "name": "friedenberg"
   }

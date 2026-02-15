@@ -387,3 +387,46 @@ packages.default = pkgs.symlinkJoin {
 ```
 
 Each component manages its own dependencies independently. The symlinkJoin creates a unified `bin/`, `share/`, etc.
+
+## FlakeHub Publishing
+
+All flakes are published to FlakeHub on every push to master. See `references/flakehub-ci.md` for the full CI reference.
+
+### FlakeHub Input URLs
+
+Use FlakeHub URLs for third-party flakes in `inputs`:
+
+```nix
+inputs = {
+  # FlakeHub URL — preferred for third-party flakes
+  utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
+
+  # Tarball format for specific versions
+  fh.url = "https://flakehub.com/f/DeterminateSystems/fh/0.1.21.tar.gz";
+
+  # GitHub URLs — for devenvs and pinned nixpkgs
+  go.url = "github:friedenberg/eng?dir=devenvs/go";
+  nixpkgs.url = "github:NixOS/nixpkgs/<stable-sha>";
+};
+```
+
+### When to Use Which URL
+
+| URL Type | Use For |
+|----------|---------|
+| `https://flakehub.com/f/...` | Third-party flakes on FlakeHub (`flake-utils`, `crane`, `fenix`, `fh`) |
+| `github:friedenberg/eng?dir=devenvs/...` | Devenv references |
+| `github:NixOS/nixpkgs/<sha>` | Pinned nixpkgs (stable and master) |
+| `github:amarbel-llc/<repo>` | Unpublished repos or repos not yet on FlakeHub |
+
+### Managing FlakeHub Inputs with `fh`
+
+The `fh` CLI (available in `devenvs/nix`) manages FlakeHub inputs:
+
+```bash
+fh add numtide/flake-utils                        # Add input
+fh add --input-name utils numtide/flake-utils     # Custom input name
+fh add "NixOS/nixpkgs/0.2411.*"                   # Version constraint
+```
+
+This is used by the `just update-nix-repos` target in the eng monorepo to keep all repos' inputs in sync.

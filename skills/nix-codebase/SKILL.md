@@ -1,12 +1,12 @@
 ---
 name: Nix Codebase Workflow
-description: This skill should be used when the user asks to "build a nix project", "fix nix build", "add a go dependency", "run gomod2nix", "update flake inputs", "set up a new nix flake", "create a devshell", "add a nix package", "debug nix build failure", or is working in any repository that contains a flake.nix file. Also applies when encountering gomod2nix hash mismatches, stale dependency files, or Nix build errors in Go or Rust projects.
-version: 0.1.0
+description: This skill should be used when the user asks to "build a nix project", "fix nix build", "add a go dependency", "run gomod2nix", "update flake inputs", "set up a new nix flake", "create a devshell", "add a nix package", "debug nix build failure", "publish to flakehub", "set up CI", "set up github actions", "deploy to flakehub", "add flakehub workflow", or is working in any repository that contains a flake.nix file. Also applies when encountering gomod2nix hash mismatches, stale dependency files, Nix build errors in Go or Rust projects, or CI/CD pipeline setup for Nix projects.
+version: 0.2.0
 ---
 
 # Nix Codebase Workflow
 
-This skill provides procedural knowledge for working with Nix-backed codebases, with emphasis on Go projects using gomod2nix and the stable-first nixpkgs convention. It captures build workflows, dependency management, and common failure modes.
+This skill provides procedural knowledge for working with Nix-backed codebases, with emphasis on Go projects using gomod2nix, the stable-first nixpkgs convention, FlakeHub publishing, and GitHub Actions CI. It captures build workflows, dependency management, CI/CD patterns, and common failure modes.
 
 ## Critical Rule: Check the Justfile First
 
@@ -203,9 +203,71 @@ When asked to update dependencies in a Go+Nix project, follow this checklist:
 5. Run `just test` to verify tests pass
 6. Stage all three files: `go.mod`, `go.sum`, `gomod2nix.toml`
 
+## FlakeHub Publishing
+
+All Nix-backed projects publish to FlakeHub on every push to master via GitHub Actions. No API keys are needed — authentication uses GitHub OIDC tokens.
+
+### Setting Up FlakeHub CI for a New Project
+
+1. Ensure the flake builds locally: `just build` or `nix build`
+2. Copy `examples/flakehub-workflow.yml` to `.github/workflows/nix.yml`
+3. Update the `name` field in `flakehub-push` to `"friedenberg/<project-name>"`
+4. Update `directory` if the flake is in a subdirectory (e.g., `./go`)
+5. Push to master — the workflow publishes automatically
+
+### Workflow Structure
+
+Every project uses a two-job workflow:
+
+| Job | Purpose |
+|-----|---------|
+| `flakehub-publish` | Publishes the flake to FlakeHub with rolling releases |
+| `build-nix-package` | Builds across x86_64-linux, x86_64-darwin, aarch64-darwin with FlakeHub cache |
+
+### Key Actions
+
+- **`DeterminateSystems/nix-installer-action@main`** — Installs Determinate Nix (flakes enabled)
+- **`DeterminateSystems/flakehub-push@main`** — Publishes flake to FlakeHub
+- **`DeterminateSystems/flakehub-cache-action@main`** — Binary cache for CI builds
+
+### Required Permissions
+
+Both jobs need OIDC for FlakeHub authentication:
+
+```yaml
+permissions:
+  id-token: "write"
+  contents: "read"
+```
+
+### FlakeHub URLs in Flake Inputs
+
+FlakeHub-hosted flakes can be used as inputs:
+
+```nix
+utils.url = "https://flakehub.com/f/numtide/flake-utils/0.1.102";
+```
+
+Use FlakeHub URLs for third-party flakes (`flake-utils`, `crane`, `fenix`). Use GitHub URLs for devenvs and pinned nixpkgs SHAs.
+
+### FlakeHub CLI (`fh`)
+
+Available in the `devenvs/nix` devshell:
+
+```bash
+fh add numtide/flake-utils              # Add a flake input
+fh add --input-name utils numtide/flake-utils  # With custom input name
+fh search "flake-utils"                 # Search for flakes
+fh status                               # Check auth status
+```
+
 ## New Project Setup
 
-When creating a new Nix-backed Go project, consult `references/flake-conventions.md` for the full flake template and `references/go-nix-workflow.md` for the detailed gomod2nix integration guide.
+When creating a new Nix-backed project:
+
+1. Consult `references/flake-conventions.md` for the flake template
+2. For Go projects, consult `references/go-nix-workflow.md` for gomod2nix integration
+3. Set up FlakeHub CI using `references/flakehub-ci.md` and `examples/flakehub-workflow.yml`
 
 ## Additional Resources
 
@@ -214,9 +276,11 @@ When creating a new Nix-backed Go project, consult `references/flake-conventions
 For detailed patterns and advanced techniques, consult:
 - **`references/go-nix-workflow.md`** — Complete gomod2nix lifecycle, buildGoApplication options, multi-binary projects, version injection, postInstall hooks
 - **`references/flake-conventions.md`** — Full flake templates for Go and Rust, devenv inheritance, stable-first nixpkgs rationale, MCP server installation pattern
+- **`references/flakehub-ci.md`** — FlakeHub publishing, GitHub Actions workflow, OIDC authentication, multi-platform builds, FlakeHub CLI usage, common CI failures
 
 ### Example Files
 
 Working templates in `examples/`:
 - **`examples/go-flake.nix`** — Canonical Go project flake with buildGoApplication
 - **`examples/go-justfile`** — Standard justfile for Go+Nix projects
+- **`examples/flakehub-workflow.yml`** — Canonical GitHub Actions workflow for FlakeHub publishing and multi-platform builds
