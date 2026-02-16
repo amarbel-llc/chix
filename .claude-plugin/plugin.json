@@ -1,7 +1,27 @@
 {
   "name": "chix",
-  "description": "Skill for working with Nix-backed codebases: Go projects with gomod2nix, Rust projects with crane, flake conventions, justfile workflows, devenv patterns, FlakeHub publishing, and GitHub Actions CI",
+  "description": "Nix MCP server and skills for Claude Code",
   "author": {
     "name": "friedenberg"
+  },
+  "mcpServers": {
+    "chix": {
+      "type": "stdio",
+      "command": "chix"
+    }
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/format-nix",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
   }
 }

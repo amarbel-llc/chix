@@ -3,14 +3,32 @@
 default:
     @just --list
 
-# Check skill markdown files with shellcheck where applicable
-check:
-    nix develop --command shellcheck skills/nix-codebase/examples/*.nix 2>/dev/null || true
+# Build with nix
+build:
+    nix build .#default --show-trace
 
-# Format shell scripts
+# Build with cargo (dev mode)
+dev:
+    cargo build
+
+# Watch for changes and rebuild
+watch:
+    cargo watch -x build
+
+# Run tests
+test:
+    cargo test
+
+# Format code
 fmt:
-    nix develop --command shfmt -w -i 2 -ci skills/nix-codebase/examples/*.bash 2>/dev/null || true
+    cargo fmt
+
+# Run cargo check and clippy
+check:
+    cargo check
+    cargo clippy -- -D warnings
 
 # Clean build artifacts
 clean:
+    cargo clean
     rm -rf result
