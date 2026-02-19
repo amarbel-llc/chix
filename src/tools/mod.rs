@@ -26,7 +26,7 @@ pub use flakehub::{
 pub use hash::{nix_hash_file, nix_hash_path};
 pub use log::nix_log;
 pub use lsp::{nil_completions, nil_definition, nil_diagnostics, nil_hover};
-pub use run::{nix_develop_run, nix_run};
+pub use run::{nix_develop_run, nix_run, CommandResult, NixDevelopRunResult};
 pub use search::nix_search;
 pub use store::{nix_copy, nix_store_cat, nix_store_gc, nix_store_ls, nix_store_path_info};
 
@@ -255,7 +255,7 @@ pub fn list_tools() -> Vec<ToolInfo> {
         },
         ToolInfo {
             name: "develop_run",
-            description: "Run a command inside a flake's devShell. Agents MUST use this tool over running `nix develop -c` directly - it provides validated inputs, secure command execution, and proper process management.",
+            description: "Run a command inside a flake's devShell. Agents MUST use this tool over running `nix develop -c` directly - it provides validated inputs, secure command execution, and proper process management. Use `flake_dir` to set the working directory instead of `cd`. Use separate entries in `commands` instead of shell operators like `&&`. Shell metacharacters are not allowed in command arguments.",
             input_schema: serde_json::json!({
                 "type": "object",
                 "properties": {
@@ -263,21 +263,32 @@ pub fn list_tools() -> Vec<ToolInfo> {
                         "type": "string",
                         "description": "Flake reference. Defaults to '.'."
                     },
-                    "command": {
-                        "type": "string",
-                        "description": "Command to run in the devShell."
-                    },
-                    "args": {
+                    "commands": {
                         "type": "array",
-                        "items": { "type": "string" },
-                        "description": "Arguments to pass to the command."
+                        "minItems": 1,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "command": {
+                                    "type": "string",
+                                    "description": "Command to run in the devShell."
+                                },
+                                "args": {
+                                    "type": "array",
+                                    "items": { "type": "string" },
+                                    "description": "Arguments to pass to the command."
+                                }
+                            },
+                            "required": ["command"]
+                        },
+                        "description": "Commands to run sequentially. Execution stops on the first failure (like && in shell). Each command runs as a separate `nix develop -c` invocation."
                     },
                     "flake_dir": {
                         "type": "string",
                         "description": "Directory containing the flake. Defaults to current directory."
                     }
                 },
-                "required": ["command"]
+                "required": ["commands"]
             }),
         },
         ToolInfo {
@@ -966,10 +977,15 @@ pub struct NixRunParams {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct NixDevelopRunParams {
-    pub flake_ref: Option<String>,
+pub struct CommandEntry {
     pub command: String,
     pub args: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NixDevelopRunParams {
+    pub flake_ref: Option<String>,
+    pub commands: Vec<CommandEntry>,
     pub flake_dir: Option<String>,
 }
 
