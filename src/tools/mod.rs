@@ -183,6 +183,18 @@ pub fn list_tools() -> Vec<ToolInfo> {
                     "flake_dir": {
                         "type": "string",
                         "description": "Directory containing the flake. Defaults to current directory."
+                    },
+                    "max_bytes": {
+                        "type": "integer",
+                        "description": "Maximum bytes of output to return. Defaults to config value (100KB)."
+                    },
+                    "head": {
+                        "type": "integer",
+                        "description": "Only return the first N lines of output."
+                    },
+                    "tail": {
+                        "type": "integer",
+                        "description": "Only return the last N lines of output."
                     }
                 }
             }),
@@ -965,6 +977,9 @@ pub struct NixFlakeUpdateParams {
     pub flake_ref: Option<String>,
     pub inputs: Option<Vec<String>>,
     pub flake_dir: Option<String>,
+    pub max_bytes: Option<usize>,
+    pub head: Option<usize>,
+    pub tail: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, Default)]

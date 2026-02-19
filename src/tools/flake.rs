@@ -189,6 +189,10 @@ pub struct NixFlakeUpdateResult {
     pub success: bool,
     pub stdout: String,
     pub stderr: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 pub async fn nix_flake_update(params: NixFlakeUpdateParams) -> Result<NixFlakeUpdateResult, String> {
@@ -218,10 +222,24 @@ pub async fn nix_flake_update(params: NixFlakeUpdateParams) -> Result<NixFlakeUp
         .await
         .map_err(|e| e.to_string())?;
 
+    let limits = OutputLimits {
+        head: params.head,
+        tail: params.tail,
+        max_bytes: params.max_bytes,
+        max_lines: None,
+    };
+
+    let limited_stdout = limit_text_output(&result.stdout, &limits);
+    let limited_stderr = limit_text_output(&result.stderr, &limits);
+
+    let truncated = limited_stdout.truncated || limited_stderr.truncated;
+
     Ok(NixFlakeUpdateResult {
         success: result.success,
-        stdout: result.stdout,
-        stderr: result.stderr,
+        stdout: limited_stdout.content,
+        stderr: limited_stderr.content,
+        truncated: if truncated { Some(true) } else { None },
+        truncation_info: limited_stdout.truncation_info.or(limited_stderr.truncation_info),
     })
 }
 
