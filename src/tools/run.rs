@@ -132,3 +132,81 @@ pub async fn nix_develop_run(params: NixDevelopRunParams) -> Result<NixDevelopRu
         results,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tools::{CommandEntry, NixDevelopRunParams};
+
+    #[tokio::test]
+    async fn test_develop_run_rejects_empty_commands() {
+        let params = NixDevelopRunParams {
+            flake_ref: None,
+            commands: vec![],
+            flake_dir: None,
+        };
+        let result = nix_develop_run(params).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("must not be empty"));
+    }
+
+    #[tokio::test]
+    async fn test_develop_run_validates_command_metacharacters() {
+        let params = NixDevelopRunParams {
+            flake_ref: Some(".".to_string()),
+            commands: vec![CommandEntry {
+                command: "echo;rm".to_string(),
+                args: None,
+            }],
+            flake_dir: None,
+        };
+        let result = nix_develop_run(params).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("shell metacharacters"));
+    }
+
+    #[tokio::test]
+    async fn test_develop_run_validates_args() {
+        let params = NixDevelopRunParams {
+            flake_ref: Some(".".to_string()),
+            commands: vec![CommandEntry {
+                command: "echo".to_string(),
+                args: Some(vec!["hello; rm -rf /".to_string()]),
+            }],
+            flake_dir: None,
+        };
+        let result = nix_develop_run(params).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("shell metacharacters"));
+    }
+
+    #[tokio::test]
+    async fn test_develop_run_validates_flake_ref() {
+        let params = NixDevelopRunParams {
+            flake_ref: Some("$(malicious)".to_string()),
+            commands: vec![CommandEntry {
+                command: "echo".to_string(),
+                args: None,
+            }],
+            flake_dir: None,
+        };
+        let result = nix_develop_run(params).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("invalid flake reference"));
+    }
+
+    #[tokio::test]
+    async fn test_develop_run_validates_path() {
+        let params = NixDevelopRunParams {
+            flake_ref: None,
+            commands: vec![CommandEntry {
+                command: "echo".to_string(),
+                args: None,
+            }],
+            flake_dir: Some("/path;injection".to_string()),
+        };
+        let result = nix_develop_run(params).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("invalid path"));
+    }
+}
