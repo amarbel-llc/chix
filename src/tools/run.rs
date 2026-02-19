@@ -1,4 +1,5 @@
 use crate::nix_runner::run_nix_command_in_dir;
+use crate::output::{limit_text_output, OutputLimits, TruncationInfo};
 use crate::tools::{NixDevelopRunParams, NixRunParams};
 use crate::validators::{
     validate_args, validate_flake_ref, validate_installable, validate_no_shell_metacharacters,
@@ -12,6 +13,10 @@ pub struct NixRunResult {
     pub stdout: String,
     pub stderr: String,
     pub exit_code: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -63,6 +68,8 @@ pub async fn nix_run(params: NixRunParams) -> Result<NixRunResult, String> {
         stdout: result.stdout,
         stderr: result.stderr,
         exit_code: result.exit_code,
+        truncated: None,
+        truncation_info: None,
     })
 }
 
