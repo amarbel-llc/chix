@@ -1,5 +1,5 @@
 use crate::nix_runner::run_nix_command;
-use crate::output::{OutputLimitsConfig, PaginationInfo};
+use crate::output::{limit_text_output, OutputLimits, OutputLimitsConfig, PaginationInfo, TruncationInfo};
 use crate::tools::NixSearchParams;
 use crate::validators::{validate_flake_ref, validate_no_shell_metacharacters};
 use serde::Serialize;
@@ -11,6 +11,10 @@ pub struct NixSearchResult {
     pub stderr: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pagination: Option<PaginationInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 pub async fn nix_search(params: NixSearchParams) -> Result<NixSearchResult, String> {
@@ -33,10 +37,11 @@ pub async fn nix_search(params: NixSearchParams) -> Result<NixSearchResult, Stri
 
     let result = run_nix_command(&args).await.map_err(|e| e.to_string())?;
 
+    let config = OutputLimitsConfig::default();
+
     let (packages, pagination) = if result.success {
         match serde_json::from_str::<serde_json::Value>(&result.stdout) {
             Ok(serde_json::Value::Object(map)) => {
-                let config = OutputLimitsConfig::default();
                 let total = map.len();
                 let offset = params.offset.unwrap_or(0);
                 let limit = params.limit.unwrap_or(config.search_limit_default());
@@ -74,10 +79,18 @@ pub async fn nix_search(params: NixSearchParams) -> Result<NixSearchResult, Stri
         (serde_json::Value::Null, None)
     };
 
+    let stderr_limits = OutputLimits {
+        max_bytes: Some(config.default_max_bytes()),
+        ..Default::default()
+    };
+    let limited_stderr = limit_text_output(&result.stderr, &stderr_limits);
+
     Ok(NixSearchResult {
         success: result.success,
         packages,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
         pagination,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
