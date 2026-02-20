@@ -1,5 +1,5 @@
 use crate::nix_runner::run_nix_command;
-use crate::output::PaginationInfo;
+use crate::output::{limit_stderr, PaginationInfo, TruncationInfo};
 use crate::tools::{NixCopyParams, NixStoreCatParams, NixStoreLsParams, NixStoreGcParams, NixStorePathInfoParams};
 use crate::validators::{validate_flake_ref, validate_no_shell_metacharacters, validate_store_path, validate_store_subpath};
 use serde::Serialize;
@@ -11,6 +11,10 @@ pub struct NixStorePathInfoResult {
     pub stderr: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pagination: Option<PaginationInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 pub async fn nix_store_path_info(
@@ -39,12 +43,16 @@ pub async fn nix_store_path_info(
 
     let result = run_nix_command(&args).await.map_err(|e| e.to_string())?;
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     if !result.success {
         return Ok(NixStorePathInfoResult {
             success: false,
             path_info: serde_json::Value::Null,
-            stderr: result.stderr,
+            stderr: limited_stderr.content,
             pagination: None,
+            truncated: if limited_stderr.truncated { Some(true) } else { None },
+            truncation_info: limited_stderr.truncation_info,
         });
     }
 
@@ -87,8 +95,10 @@ pub async fn nix_store_path_info(
     Ok(NixStorePathInfoResult {
         success: true,
         path_info,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
         pagination,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 
@@ -97,6 +107,10 @@ pub struct NixStoreGcResult {
     pub success: bool,
     pub stdout: String,
     pub stderr: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 pub async fn nix_store_gc(params: NixStoreGcParams) -> Result<NixStoreGcResult, String> {
@@ -116,10 +130,14 @@ pub async fn nix_store_gc(params: NixStoreGcParams) -> Result<NixStoreGcResult, 
 
     let result = run_nix_command(&args).await.map_err(|e| e.to_string())?;
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     Ok(NixStoreGcResult {
         success: result.success,
         stdout: result.stdout,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 
@@ -128,6 +146,10 @@ pub struct NixCopyResult {
     pub success: bool,
     pub stdout: String,
     pub stderr: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 pub async fn nix_copy(params: NixCopyParams) -> Result<NixCopyResult, String> {
@@ -161,10 +183,14 @@ pub async fn nix_copy(params: NixCopyParams) -> Result<NixCopyResult, String> {
 
     let result = run_nix_command(&args).await.map_err(|e| e.to_string())?;
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     Ok(NixCopyResult {
         success: result.success,
         stdout: result.stdout,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 

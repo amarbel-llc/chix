@@ -1,5 +1,5 @@
 use crate::nix_runner::run_nix_command_in_dir;
-use crate::output::PaginationInfo;
+use crate::output::{limit_stderr, PaginationInfo, TruncationInfo};
 use crate::tools::NixDerivationShowParams;
 use crate::validators::{validate_flake_ref, validate_path, validate_store_path};
 use serde::Serialize;
@@ -24,6 +24,10 @@ pub struct NixDerivationShowResult {
     pub stderr: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pagination: Option<PaginationInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 fn extract_derivation_summary(
@@ -84,13 +88,17 @@ pub async fn nix_derivation_show(
         .await
         .map_err(|e| e.to_string())?;
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     if !result.success {
         return Ok(NixDerivationShowResult {
             success: false,
             derivation: Some(serde_json::Value::Null),
             summary: None,
-            stderr: result.stderr,
+            stderr: limited_stderr.content,
             pagination: None,
+            truncated: if limited_stderr.truncated { Some(true) } else { None },
+            truncation_info: limited_stderr.truncation_info,
         });
     }
 
@@ -133,8 +141,10 @@ pub async fn nix_derivation_show(
                 success: true,
                 derivation: None,
                 summary: Some(summaries),
-                stderr: result.stderr,
+                stderr: limited_stderr.content,
                 pagination,
+                truncated: if limited_stderr.truncated { Some(true) } else { None },
+                truncation_info: limited_stderr.truncation_info,
             });
         }
     }
@@ -173,16 +183,20 @@ pub async fn nix_derivation_show(
             success: true,
             derivation: Some(serde_json::Value::Object(paginated)),
             summary: None,
-            stderr: result.stderr,
+            stderr: limited_stderr.content,
             pagination,
+            truncated: if limited_stderr.truncated { Some(true) } else { None },
+            truncation_info: limited_stderr.truncation_info,
         })
     } else {
         Ok(NixDerivationShowResult {
             success: true,
             derivation: Some(parsed),
             summary: None,
-            stderr: result.stderr,
+            stderr: limited_stderr.content,
             pagination: None,
+            truncated: if limited_stderr.truncated { Some(true) } else { None },
+            truncation_info: limited_stderr.truncation_info,
         })
     }
 }

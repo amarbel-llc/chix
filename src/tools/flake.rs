@@ -1,5 +1,5 @@
 use crate::nix_runner::run_nix_command_in_dir;
-use crate::output::{limit_text_output, OutputLimits, TruncationInfo};
+use crate::output::{limit_stderr, limit_text_output, OutputLimits, TruncationInfo};
 use crate::tools::{
     NixFlakeCheckParams, NixFlakeInitParams, NixFlakeLockParams, NixFlakeMetadataParams,
     NixFlakeShowParams, NixFlakeUpdateParams,
@@ -39,13 +39,15 @@ pub async fn nix_flake_show(params: NixFlakeShowParams) -> Result<NixFlakeShowRe
         .await
         .map_err(|e| e.to_string())?;
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     if !result.success {
         return Ok(NixFlakeShowResult {
             success: false,
             outputs: serde_json::Value::Null,
-            stderr: result.stderr,
-            truncated: None,
-            truncation_info: None,
+            stderr: limited_stderr.content,
+            truncated: if limited_stderr.truncated { Some(true) } else { None },
+            truncation_info: limited_stderr.truncation_info,
         });
     }
 
@@ -61,12 +63,14 @@ pub async fn nix_flake_show(params: NixFlakeShowParams) -> Result<NixFlakeShowRe
     let outputs =
         serde_json::from_str(&limited.content).unwrap_or(serde_json::Value::String(limited.content));
 
+    let truncated = limited.truncated || limited_stderr.truncated;
+
     Ok(NixFlakeShowResult {
         success: true,
         outputs,
-        stderr: result.stderr,
-        truncated: if limited.truncated { Some(true) } else { None },
-        truncation_info: limited.truncation_info,
+        stderr: limited_stderr.content,
+        truncated: if truncated { Some(true) } else { None },
+        truncation_info: limited.truncation_info.or(limited_stderr.truncation_info),
     })
 }
 
@@ -153,13 +157,15 @@ pub async fn nix_flake_metadata(
         .await
         .map_err(|e| e.to_string())?;
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     if !result.success {
         return Ok(NixFlakeMetadataResult {
             success: false,
             metadata: serde_json::Value::Null,
-            stderr: result.stderr,
-            truncated: None,
-            truncation_info: None,
+            stderr: limited_stderr.content,
+            truncated: if limited_stderr.truncated { Some(true) } else { None },
+            truncation_info: limited_stderr.truncation_info,
         });
     }
 
@@ -175,12 +181,14 @@ pub async fn nix_flake_metadata(
     let metadata =
         serde_json::from_str(&limited.content).unwrap_or(serde_json::Value::String(limited.content));
 
+    let truncated = limited.truncated || limited_stderr.truncated;
+
     Ok(NixFlakeMetadataResult {
         success: true,
         metadata,
-        stderr: result.stderr,
-        truncated: if limited.truncated { Some(true) } else { None },
-        truncation_info: limited.truncation_info,
+        stderr: limited_stderr.content,
+        truncated: if truncated { Some(true) } else { None },
+        truncation_info: limited.truncation_info.or(limited_stderr.truncation_info),
     })
 }
 
@@ -318,6 +326,10 @@ pub struct NixFlakeInitResult {
     pub success: bool,
     pub stdout: String,
     pub stderr: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 pub async fn nix_flake_init(params: NixFlakeInitParams) -> Result<NixFlakeInitResult, String> {
@@ -340,9 +352,13 @@ pub async fn nix_flake_init(params: NixFlakeInitParams) -> Result<NixFlakeInitRe
         .await
         .map_err(|e| e.to_string())?;
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     Ok(NixFlakeInitResult {
         success: result.success,
         stdout: result.stdout,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }

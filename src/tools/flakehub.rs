@@ -1,5 +1,5 @@
 use crate::nix_runner::run_fh_command;
-use crate::output::PaginationInfo;
+use crate::output::{limit_stderr, PaginationInfo, TruncationInfo};
 use crate::tools::{
     FhAddParams, FhFetchParams, FhListFlakesParams, FhListReleasesParams, FhListVersionsParams,
     FhLoginParams, FhResolveParams, FhSearchParams,
@@ -45,6 +45,10 @@ pub struct FhSearchResult {
     pub stderr: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pagination: Option<PaginationInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -52,6 +56,10 @@ pub struct FhAddResult {
     pub success: bool,
     pub output: String,
     pub stderr: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -61,6 +69,10 @@ pub struct FhListResult {
     pub stderr: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pagination: Option<PaginationInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -68,6 +80,10 @@ pub struct FhResolveResult {
     pub success: bool,
     pub result: serde_json::Value,
     pub stderr: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 pub async fn fh_search(params: FhSearchParams) -> Result<FhSearchResult, String> {
@@ -93,11 +109,15 @@ pub async fn fh_search(params: FhSearchParams) -> Result<FhSearchResult, String>
 
     let (results, pagination) = paginate_json_array(parsed, params.offset, params.limit);
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     Ok(FhSearchResult {
         success: result.success,
         results,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
         pagination,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 
@@ -126,10 +146,14 @@ pub async fn fh_add(params: FhAddParams) -> Result<FhAddResult, String> {
 
     let result = run_fh_command(&args).await.map_err(|e| e.to_string())?;
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     Ok(FhAddResult {
         success: result.success,
         output: result.stdout,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 
@@ -153,11 +177,15 @@ pub async fn fh_list_flakes(params: FhListFlakesParams) -> Result<FhListResult, 
 
     let (results, pagination) = paginate_json_array(parsed, params.offset, params.limit);
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     Ok(FhListResult {
         success: result.success,
         results,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
         pagination,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 
@@ -184,11 +212,15 @@ pub async fn fh_list_releases(params: FhListReleasesParams) -> Result<FhListResu
 
     let (results, pagination) = paginate_json_array(parsed, params.offset, params.limit);
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     Ok(FhListResult {
         success: result.success,
         results,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
         pagination,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 
@@ -217,11 +249,15 @@ pub async fn fh_list_versions(params: FhListVersionsParams) -> Result<FhListResu
 
     let (results, pagination) = paginate_json_array(parsed, params.offset, params.limit);
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     Ok(FhListResult {
         success: result.success,
         results,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
         pagination,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 
@@ -238,10 +274,14 @@ pub async fn fh_resolve(params: FhResolveParams) -> Result<FhResolveResult, Stri
         serde_json::Value::Null
     };
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     Ok(FhResolveResult {
         success: result.success,
         result: resolve_result,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 
@@ -251,6 +291,10 @@ pub struct FhStatusResult {
     pub logged_in: bool,
     pub stdout: String,
     pub stderr: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -260,6 +304,10 @@ pub struct FhFetchResult {
     pub target_link: String,
     pub stdout: String,
     pub stderr: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -267,6 +315,10 @@ pub struct FhLoginResult {
     pub success: bool,
     pub message: String,
     pub stderr: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 pub async fn fh_status() -> Result<FhStatusResult, String> {
@@ -277,11 +329,15 @@ pub async fn fh_status() -> Result<FhStatusResult, String> {
     let logged_in = result.success
         && (result.stdout.contains("Logged in") || result.stdout.contains("authenticated"));
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     Ok(FhStatusResult {
         success: result.success,
         logged_in,
         stdout: result.stdout,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 
@@ -299,12 +355,16 @@ pub async fn fh_fetch(params: FhFetchParams) -> Result<FhFetchResult, String> {
         .find(|line| line.starts_with("/nix/store/"))
         .map(|s| s.to_string());
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     Ok(FhFetchResult {
         success: result.success,
         store_path,
         target_link: params.target_link,
         stdout: result.stdout,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 
@@ -327,9 +387,13 @@ pub async fn fh_login(params: FhLoginParams) -> Result<FhLoginResult, String> {
         format!("Login failed: {}", result.stderr)
     };
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     Ok(FhLoginResult {
         success: result.success,
         message,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }

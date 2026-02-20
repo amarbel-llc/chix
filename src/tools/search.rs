@@ -1,5 +1,5 @@
 use crate::nix_runner::run_nix_command;
-use crate::output::{limit_text_output, OutputLimits, OutputLimitsConfig, PaginationInfo, TruncationInfo};
+use crate::output::{limit_stderr, OutputLimitsConfig, PaginationInfo, TruncationInfo};
 use crate::tools::NixSearchParams;
 use crate::validators::{validate_flake_ref, validate_no_shell_metacharacters};
 use serde::Serialize;
@@ -79,11 +79,7 @@ pub async fn nix_search(params: NixSearchParams) -> Result<NixSearchResult, Stri
         (serde_json::Value::Null, None)
     };
 
-    let stderr_limits = OutputLimits {
-        max_bytes: Some(config.default_max_bytes()),
-        ..Default::default()
-    };
-    let limited_stderr = limit_text_output(&result.stderr, &stderr_limits);
+    let limited_stderr = limit_stderr(&result.stderr);
 
     Ok(NixSearchResult {
         success: result.success,

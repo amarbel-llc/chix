@@ -1,5 +1,5 @@
 use crate::nix_runner::run_nix_command;
-use crate::output::{limit_text_output, OutputLimits, TruncationInfo};
+use crate::output::{limit_stderr, limit_text_output, OutputLimits, TruncationInfo};
 use crate::tools::NixLogParams;
 use crate::validators::validate_installable;
 use serde::Serialize;
@@ -32,15 +32,14 @@ pub async fn nix_log(params: NixLogParams) -> Result<NixLogResult, String> {
 
     let limited = limit_text_output(&result.stdout, &limits);
 
+    let limited_stderr = limit_stderr(&result.stderr);
+    let truncated = limited.truncated || limited_stderr.truncated;
+
     Ok(NixLogResult {
         success: result.success,
         log: limited.content,
-        stderr: result.stderr,
-        truncated: if limited.truncated {
-            Some(true)
-        } else {
-            None
-        },
-        truncation_info: limited.truncation_info,
+        stderr: limited_stderr.content,
+        truncated: if truncated { Some(true) } else { None },
+        truncation_info: limited.truncation_info.or(limited_stderr.truncation_info),
     })
 }

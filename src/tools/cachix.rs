@@ -1,5 +1,6 @@
 use crate::config::{get_cachix_token, get_default_cache, load_config};
 use crate::nix_runner::{run_cachix_command, run_cachix_command_with_env, NixError};
+use crate::output::{limit_stderr, TruncationInfo};
 use crate::validators::{validate_cache_name, validate_store_paths};
 use serde::Serialize;
 
@@ -11,6 +12,10 @@ pub struct CachixPushResult {
     pub paths_pushed: Vec<String>,
     pub stdout: String,
     pub stderr: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -19,6 +24,10 @@ pub struct CachixUseResult {
     pub cache_name: String,
     pub stdout: String,
     pub stderr: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -27,6 +36,10 @@ pub struct CachixStatusResult {
     pub authenticated: bool,
     pub stdout: String,
     pub stderr: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 pub async fn cachix_push(
@@ -68,6 +81,8 @@ pub async fn cachix_push(
             NixError::Io(e) => format!("IO error running cachix: {}", e),
         })?;
 
+    let limited_stderr = limit_stderr(&output.stderr);
+
     Ok(CachixPushResult {
         success: output.success,
         paths_pushed: if output.success {
@@ -76,7 +91,9 @@ pub async fn cachix_push(
             vec![]
         },
         stdout: output.stdout,
-        stderr: output.stderr,
+        stderr: limited_stderr.content,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 
@@ -91,11 +108,15 @@ pub async fn cachix_use(cache_name: String) -> Result<CachixUseResult, String> {
             NixError::Io(e) => format!("IO error running cachix: {}", e),
         })?;
 
+    let limited_stderr = limit_stderr(&output.stderr);
+
     Ok(CachixUseResult {
         success: output.success,
         cache_name,
         stdout: output.stdout,
-        stderr: output.stderr,
+        stderr: limited_stderr.content,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 
@@ -115,10 +136,14 @@ pub async fn cachix_status() -> Result<CachixStatusResult, String> {
         || output.stdout.contains("token")
         || !output.stderr.contains("not authenticated");
 
+    let limited_stderr = limit_stderr(&output.stderr);
+
     Ok(CachixStatusResult {
         success: true,
         authenticated,
         stdout: output.stdout,
-        stderr: output.stderr,
+        stderr: limited_stderr.content,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }

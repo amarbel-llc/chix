@@ -121,6 +121,16 @@ pub struct PaginationInfo {
     pub has_more: bool,
 }
 
+/// Apply default max_bytes truncation to stderr
+pub fn limit_stderr(input: &str) -> LimitedOutput {
+    let config = OutputLimitsConfig::default();
+    let limits = OutputLimits {
+        max_bytes: Some(config.default_max_bytes()),
+        ..Default::default()
+    };
+    limit_text_output(input, &limits)
+}
+
 /// Apply limits to text output
 pub fn limit_text_output(input: &str, limits: &OutputLimits) -> LimitedOutput {
     let original_bytes = input.len();

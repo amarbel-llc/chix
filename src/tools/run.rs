@@ -1,5 +1,5 @@
 use crate::nix_runner::run_nix_command_in_dir;
-use crate::output::{limit_text_output, OutputLimits, TruncationInfo};
+use crate::output::{limit_stderr, limit_text_output, OutputLimits, TruncationInfo};
 use crate::tools::{NixDevelopRunParams, NixRunParams};
 use crate::validators::{
     validate_args, validate_flake_ref, validate_installable, validate_no_shell_metacharacters,
@@ -71,13 +71,15 @@ pub async fn nix_run(params: NixRunParams) -> Result<NixRunResult, String> {
         .await
         .map_err(|e| e.to_string())?;
 
+    let limited_stderr = limit_stderr(&result.stderr);
+
     Ok(NixRunResult {
         success: result.success,
         stdout: result.stdout,
-        stderr: result.stderr,
+        stderr: limited_stderr.content,
         exit_code: result.exit_code,
-        truncated: None,
-        truncation_info: None,
+        truncated: if limited_stderr.truncated { Some(true) } else { None },
+        truncation_info: limited_stderr.truncation_info,
     })
 }
 
