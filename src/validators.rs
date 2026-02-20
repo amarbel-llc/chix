@@ -4,25 +4,28 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ValidationError {
-    #[error("invalid flake reference: {0}")]
+    #[error("invalid flake reference: `{0}`")]
     InvalidFlakeRef(String),
 
-    #[error("shell metacharacters not allowed: {0}")]
+    #[error("shell metacharacters not allowed: `{0}`. Retry with the metacharacters removed — use separate array entries or tool parameters instead of shell operators")]
     ShellMetacharacters(String),
 
-    #[error("invalid attribute path: {0}")]
+    #[error("nix expression contains invalid characters (null bytes): `{0}`")]
+    InvalidNixExpr(String),
+
+    #[error("invalid attribute path: `{0}`")]
     InvalidAttrPath(String),
 
-    #[error("invalid cache name: {0}")]
+    #[error("invalid cache name: `{0}`")]
     InvalidCacheName(String),
 
-    #[error("invalid store path: {0}")]
+    #[error("invalid store path: `{0}`")]
     InvalidStorePath(String),
 
-    #[error("invalid store subpath: {0}")]
+    #[error("invalid store subpath: `{0}`")]
     InvalidStoreSubpath(String),
 
-    #[error("invalid path: {0}")]
+    #[error("invalid path: `{0}`")]
     InvalidPath(String),
 }
 
@@ -88,6 +91,19 @@ pub fn validate_args(args: &[String]) -> Result<(), ValidationError> {
     Ok(())
 }
 
+/// Validate a Nix expression for use with `nix eval --expr` or `--apply`.
+///
+/// Since commands are spawned via `tokio::process::Command` (direct execvp,
+/// no shell), Nix syntax characters like `$`, `{}`, `()` are safe — they are
+/// passed as literal bytes to the nix process. Only null bytes are rejected
+/// as they cannot be passed in argv.
+pub fn validate_nix_expr(input: &str) -> Result<&str, ValidationError> {
+    if input.contains('\0') {
+        return Err(ValidationError::InvalidNixExpr(input.to_string()));
+    }
+    Ok(input)
+}
+
 pub fn validate_cache_name(name: &str) -> Result<&str, ValidationError> {
     if !CACHE_NAME_PATTERN.is_match(name) {
         return Err(ValidationError::InvalidCacheName(name.to_string()));
@@ -151,6 +167,22 @@ mod tests {
         assert!(validate_no_shell_metacharacters("hello; rm -rf").is_err());
         assert!(validate_no_shell_metacharacters("$(cmd)").is_err());
         assert!(validate_no_shell_metacharacters("foo | bar").is_err());
+    }
+
+    #[test]
+    fn test_nix_expr() {
+        // Valid Nix expressions with syntax characters
+        assert!(validate_nix_expr("{ x = 1; }").is_ok());
+        assert!(validate_nix_expr("builtins.attrNames { a = 1; b = 2; }").is_ok());
+        assert!(validate_nix_expr("let x = 1; in x").is_ok());
+        assert!(validate_nix_expr("(import <nixpkgs> {}).hello").is_ok());
+        assert!(validate_nix_expr("\"hello ${name}\"").is_ok());
+        assert!(validate_nix_expr("x: x + 1").is_ok());
+        assert!(validate_nix_expr("a && b || c").is_ok());
+        assert!(validate_nix_expr("if true then 1 else 2").is_ok());
+        assert!(validate_nix_expr("map (x: x * 2) [1 2 3]").is_ok());
+        // Null bytes are rejected
+        assert!(validate_nix_expr("hello\0world").is_err());
     }
 
     #[test]

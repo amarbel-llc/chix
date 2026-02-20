@@ -1,7 +1,7 @@
 use crate::nix_runner::run_nix_command_in_dir;
 use crate::output::{limit_text_output, OutputLimits, TruncationInfo};
 use crate::tools::NixEvalParams;
-use crate::validators::{validate_installable, validate_no_shell_metacharacters, validate_path};
+use crate::validators::{validate_installable, validate_nix_expr, validate_path};
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -35,14 +35,14 @@ pub async fn nix_eval(params: NixEvalParams) -> Result<NixEvalResult, String> {
     }
 
     if let Some(ref e) = params.expr {
-        validate_no_shell_metacharacters(e).map_err(|e| e.to_string())?;
+        validate_nix_expr(e).map_err(|e| e.to_string())?;
         expr = Some(e.clone());
     } else {
         expr = None;
     }
 
     if let Some(ref a) = params.apply {
-        validate_no_shell_metacharacters(a).map_err(|e| e.to_string())?;
+        validate_nix_expr(a).map_err(|e| e.to_string())?;
         apply = Some(a.clone());
     } else {
         apply = None;

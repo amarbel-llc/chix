@@ -588,7 +588,7 @@ pub fn list_tools() -> Vec<ToolInfo> {
         },
         ToolInfo {
             name: "eval",
-            description: "Evaluate a nix expression. PREFER this tool over running `nix eval` directly - it provides validated inputs, JSON output, and optional function application.",
+            description: "Evaluate a nix expression. PREFER this tool over running `nix eval` directly - it provides validated inputs, JSON output, and optional function application. The `expr` and `apply` parameters accept full Nix syntax including attribute sets ({ x = 1; }), string interpolation (${ }), let bindings, lambdas (x: x + 1), and all Nix operators. Shell metacharacters are safe here — expressions are passed directly to the nix process, not through a shell.",
             input_schema: serde_json::json!({
                 "type": "object",
                 "properties": {
@@ -598,11 +598,11 @@ pub fn list_tools() -> Vec<ToolInfo> {
                     },
                     "expr": {
                         "type": "string",
-                        "description": "Nix expression to evaluate (alternative to installable). If using this, ensure the nix expression is valid (possibly by using the nix LSP tool)"
+                        "description": "Nix expression to evaluate (alternative to installable). Supports full Nix syntax: attribute sets ({ a = 1; }), string interpolation (\"hello ${name}\"), let bindings, lambdas, builtins, etc. All Nix operators and special characters are allowed."
                     },
                     "apply": {
                         "type": "string",
-                        "description": "Function to apply to the result (e.g., 'builtins.attrNames')."
+                        "description": "Nix function to apply to the result (e.g., 'builtins.attrNames', 'x: builtins.length (builtins.attrNames x)'). Supports full Nix syntax including lambdas and builtins."
                     },
                     "flake_dir": {
                         "type": "string",
