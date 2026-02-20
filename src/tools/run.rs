@@ -26,12 +26,20 @@ pub struct CommandResult {
     pub stdout: String,
     pub stderr: String,
     pub exit_code: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct NixDevelopRunResult {
     pub success: bool,
     pub results: Vec<CommandResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncation_info: Option<TruncationInfo>,
 }
 
 pub async fn nix_run(params: NixRunParams) -> Result<NixRunResult, String> {
@@ -86,8 +94,16 @@ pub async fn nix_develop_run(params: NixDevelopRunParams) -> Result<NixDevelopRu
         return Err("commands array must not be empty".to_string());
     }
 
+    let limits = OutputLimits {
+        head: params.head,
+        tail: params.tail,
+        max_bytes: params.max_bytes,
+        max_lines: None,
+    };
+
     let mut results = Vec::new();
     let mut all_success = true;
+    let mut any_truncated = false;
 
     for entry in &params.commands {
         validate_no_shell_metacharacters(&entry.command).map_err(|e| e.to_string())?;
@@ -119,13 +135,27 @@ pub async fn nix_develop_run(params: NixDevelopRunParams) -> Result<NixDevelopRu
             .await
             .map_err(|e| e.to_string())?;
 
+        let limited_stdout = limit_text_output(&result.stdout, &limits);
+        let limited_stderr = limit_text_output(&result.stderr, &limits);
+        let truncated = limited_stdout.truncated || limited_stderr.truncated;
+        if truncated {
+            any_truncated = true;
+        }
+
+        // Use stdout truncation_info as the per-command info (primary output)
+        let truncation_info = limited_stdout
+            .truncation_info
+            .or(limited_stderr.truncation_info);
+
         let success = result.success;
         results.push(CommandResult {
             command: command_display,
             success,
-            stdout: result.stdout,
-            stderr: result.stderr,
+            stdout: limited_stdout.content,
+            stderr: limited_stderr.content,
             exit_code: result.exit_code,
+            truncated: if truncated { Some(true) } else { None },
+            truncation_info,
         });
 
         if !success {
@@ -136,6 +166,8 @@ pub async fn nix_develop_run(params: NixDevelopRunParams) -> Result<NixDevelopRu
 
     Ok(NixDevelopRunResult {
         success: all_success,
+        truncated: if any_truncated { Some(true) } else { None },
+        truncation_info: None,
         results,
     })
 }
@@ -151,6 +183,9 @@ mod tests {
             flake_ref: None,
             commands: vec![],
             flake_dir: None,
+            max_bytes: None,
+            head: None,
+            tail: None,
         };
         let result = nix_develop_run(params).await;
         assert!(result.is_err());
@@ -166,6 +201,9 @@ mod tests {
                 args: None,
             }],
             flake_dir: None,
+            max_bytes: None,
+            head: None,
+            tail: None,
         };
         let result = nix_develop_run(params).await;
         assert!(result.is_err());
@@ -181,6 +219,9 @@ mod tests {
                 args: Some(vec!["hello; rm -rf /".to_string()]),
             }],
             flake_dir: None,
+            max_bytes: None,
+            head: None,
+            tail: None,
         };
         let result = nix_develop_run(params).await;
         assert!(result.is_err());
@@ -196,6 +237,9 @@ mod tests {
                 args: None,
             }],
             flake_dir: None,
+            max_bytes: None,
+            head: None,
+            tail: None,
         };
         let result = nix_develop_run(params).await;
         assert!(result.is_err());
@@ -211,6 +255,9 @@ mod tests {
                 args: None,
             }],
             flake_dir: Some("/path;injection".to_string()),
+            max_bytes: None,
+            head: None,
+            tail: None,
         };
         let result = nix_develop_run(params).await;
         assert!(result.is_err());

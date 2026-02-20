@@ -1,5 +1,5 @@
 use crate::nix_runner::run_nix_command;
-use crate::output::PaginationInfo;
+use crate::output::{OutputLimitsConfig, PaginationInfo};
 use crate::tools::NixSearchParams;
 use crate::validators::{validate_flake_ref, validate_no_shell_metacharacters};
 use serde::Serialize;
@@ -36,9 +36,10 @@ pub async fn nix_search(params: NixSearchParams) -> Result<NixSearchResult, Stri
     let (packages, pagination) = if result.success {
         match serde_json::from_str::<serde_json::Value>(&result.stdout) {
             Ok(serde_json::Value::Object(map)) => {
+                let config = OutputLimitsConfig::default();
                 let total = map.len();
                 let offset = params.offset.unwrap_or(0);
-                let limit = params.limit.unwrap_or(total);
+                let limit = params.limit.unwrap_or(config.search_limit_default());
 
                 // Apply pagination by converting to sorted vec, slicing, then back to object
                 let mut entries: Vec<_> = map.into_iter().collect();
@@ -53,7 +54,7 @@ pub async fn nix_search(params: NixSearchParams) -> Result<NixSearchResult, Stri
                 let kept_count = paginated.len();
                 let has_more = offset + kept_count < total;
 
-                let pagination_info = if params.limit.is_some() || params.offset.is_some() {
+                let pagination_info = if kept_count < total || offset > 0 {
                     Some(PaginationInfo {
                         offset,
                         limit,
