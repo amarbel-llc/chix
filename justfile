@@ -17,7 +17,7 @@ watch:
 
 # Run tests
 test:
-    cargo test
+    nix develop --command cargo test
 
 # Format code
 fmt:

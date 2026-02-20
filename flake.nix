@@ -15,15 +15,15 @@
   };
 
   outputs =
-    {
-      self,
-      nixpkgs,
-      utils,
-      rust-overlay,
-      crane,
-      fh,
-      rust,
-      nixpkgs-master,
+    { self
+    , nixpkgs
+    , utils
+    , rust-overlay
+    , crane
+    , fh
+    , rust
+    , nixpkgs-master
+    ,
     }:
     utils.lib.eachDefaultSystem (
       system:
